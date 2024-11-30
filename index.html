@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MedInquire AI</title>
+</head>
+<body>
+  <h1>MedInquire AI</h1>
+  <textarea id="query" placeholder="Enter your medical query..." rows="4" cols="50"></textarea>
+  <br>
+  <button onclick="submitQuery()">Get Answer</button>
+  <div id="output"></div>
+
+  <script>
+    async function submitQuery() {
+      const query = document.getElementById("query").value;
+      const output = document.getElementById("output");
+      output.innerHTML = "Processing...";
+      try {
+        const response = await fetch("http://127.0.0.1:8000/get-answer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, top_k: 3 }),
+        });
+        const data = await response.json();
+        output.innerHTML = `<h3>Answer:</h3><p>${data.answer}</p><h4>Sources:</h4><ul>${data.sources.map(src => `<li>${src}</li>`).join("")}</ul>`;
+      } catch (err) {
+        output.innerHTML = `<p style="color: red;">Error: ${err.message}</p>`;
+      }
+    }
+  </script>
+</body>
+</html>
