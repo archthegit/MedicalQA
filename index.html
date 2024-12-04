@@ -43,18 +43,22 @@
       background-color: #f5f5f5;
     }
 
-    .chat-messages .message {
-      margin-bottom: 15px;
+    .message {
       display: flex;
-      flex-direction: column;
-    }
-
-    .chat-messages .message.user {
-      align-items: flex-end;
-    }
-
-    .chat-messages .message.bot {
       align-items: flex-start;
+      margin-bottom: 15px;
+    }
+
+    .message.user {
+      align-items: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    .message .icon {
+      width: 30px;
+      height: 30px;
+      margin: 0 10px;
+      border-radius: 50%;
     }
 
     .message .bubble {
@@ -77,12 +81,6 @@
       border-bottom-left-radius: 0;
     }
 
-    .message .timestamp {
-      font-size: 12px;
-      color: #888;
-      margin-top: 5px;
-    }
-
     .chat-input-container {
       padding: 10px;
       border-top: 1px solid #ddd;
@@ -100,72 +98,87 @@
       outline: none;
     }
 
-    .mic-button {
-      width: 32px;
-      height: 32px;
+    .icon-button {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: #3aa7a3;
+      border-radius: 50%;
       cursor: pointer;
-      margin-left: 10px;
+      margin: 0 5px;
       transition: transform 0.2s;
     }
 
-    .mic-button:hover {
+    .icon-button img {
+      width: 20px;
+      height: 20px;
+    }
+
+    .icon-button:hover {
       transform: scale(1.1);
     }
 
-    .chat-send {
+    .recording-box {
+      display: none;
+      flex: 1;
+      padding: 10px;
+      font-size: 14px;
       background-color: #3aa7a3;
       color: white;
-      border: none;
-      padding: 10px 15px;
-      margin-left: 10px;
+      border: 1px solid #ccc;
       border-radius: 20px;
-      font-size: 14px;
-      cursor: pointer;
-      transition: background-color 0.2s;
+      justify-content: space-between;
+      align-items: center;
     }
 
-    .chat-send:hover {
-      background-color: #349993;
+    .recording-box .waves {
+      display: flex;
+      align-items: center;
     }
 
-    .recording-indicator {
-      display: none;
-      width: 10px;
+    .recording-box .wave {
+      width: 5px;
       height: 10px;
-      border-radius: 50%;
-      background-color: red;
-      animation: pulse 1s infinite;
-      margin-left: 10px;
+      background-color: white;
+      margin: 0 2px;
+      animation: wave-animation 1s infinite ease-in-out;
     }
 
-    @keyframes pulse {
-      0% {
-        transform: scale(1);
-        opacity: 1;
+    .recording-box .wave:nth-child(1) {
+      animation-delay: 0s;
+    }
+
+    .recording-box .wave:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .recording-box .wave:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes wave-animation {
+      0%, 100% {
+        transform: scaleY(1);
       }
       50% {
-        transform: scale(1.5);
-        opacity: 0.7;
+        transform: scaleY(2);
       }
-      100% {
-        transform: scale(1);
-        opacity: 1;
-      }
-    }
-
-    .recording-indicator.active {
-      display: inline-block;
     }
   </style>
 </head>
 <body>
   <div class="chat-container">
     <div class="chat-header">
-      MedInquire AI - Your Medical Assistant
+      MedInquire AI
     </div>
     <div class="chat-messages" id="chat-messages">
     </div>
     <div class="chat-input-container">
+      <div class="icon-button" onclick="attachFile()">
+        <img src="assets/paperclip.png" alt="Attach File">
+      </div>
       <input
         type="text"
         id="chat-input"
@@ -173,14 +186,20 @@
         placeholder="Type your query or use the microphone..."
         onkeypress="handleKeyPress(event)"
       />
-      <img
-        src="microphone.png"
-        alt="Microphone"
-        class="mic-button"
-        onclick="startSpeechRecognition()"
-      />
-      <div class="recording-indicator" id="recording-indicator"></div>
-      <button class="chat-send" onclick="submitQuery()">Send</button>
+      <div id="recording-box" class="recording-box">
+        Recording...
+        <div class="waves">
+          <div class="wave"></div>
+          <div class="wave"></div>
+          <div class="wave"></div>
+        </div>
+      </div>
+      <div class="icon-button" onclick="startSpeechRecognition()">
+        <img src="assets/microphone.png" alt="Microphone">
+      </div>
+      <div class="icon-button" onclick="submitQuery()">
+        <img src="assets/send.png" alt="Send">
+      </div>
     </div>
   </div>
 
@@ -197,7 +216,7 @@
 
       recognition.onstart = function () {
         console.log("Speech recognition started...");
-        toggleRecordingIndicator(true);
+        toggleRecording(true);
       };
 
       recognition.onresult = function (event) {
@@ -209,12 +228,12 @@
       recognition.onerror = function (event) {
         console.error("Speech recognition error:", event.error);
         alert("Speech recognition error: " + event.error);
-        toggleRecordingIndicator(false);
+        toggleRecording(false);
       };
 
       recognition.onend = function () {
         console.log("Speech recognition ended.");
-        toggleRecordingIndicator(false);
+        toggleRecording(false);
       };
     } else {
       alert("Speech recognition is not supported in this browser.");
@@ -228,12 +247,15 @@
       }
     }
 
-    function toggleRecordingIndicator(isRecording) {
-      const indicator = document.getElementById("recording-indicator");
+    function toggleRecording(isRecording) {
+      const inputBox = document.getElementById("chat-input");
+      const recordingBox = document.getElementById("recording-box");
       if (isRecording) {
-        indicator.classList.add("active");
+        inputBox.style.display = "none";
+        recordingBox.style.display = "flex";
       } else {
-        indicator.classList.remove("active");
+        inputBox.style.display = "block";
+        recordingBox.style.display = "none";
       }
     }
 
@@ -281,20 +303,16 @@
       const messageElement = document.createElement("div");
       messageElement.classList.add("message", sender);
 
+      const iconElement = document.createElement("img");
+      iconElement.classList.add("icon");
+      iconElement.src = sender === "user" ? "assets/user.png" : "assets/chatbot.png";
+
       const bubbleElement = document.createElement("div");
       bubbleElement.classList.add("bubble");
       bubbleElement.innerHTML = message;
 
-      const timestampElement = document.createElement("div");
-      timestampElement.classList.add("timestamp");
-      const timestamp = new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      timestampElement.textContent = timestamp;
-
+      messageElement.appendChild(iconElement);
       messageElement.appendChild(bubbleElement);
-      messageElement.appendChild(timestampElement);
       messagesContainer.appendChild(messageElement);
 
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -313,6 +331,11 @@
         submitQuery();
       }
     }
+
+    function attachFile() {
+      alert("Attachment functionality coming soon!");
+    }
+
     window.onload = function () {
       addMessageToChat(
         "bot",
