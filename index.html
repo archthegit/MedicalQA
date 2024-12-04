@@ -4,19 +4,251 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MedInquire AI</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: #e6f7f6;
+    }
+
+    .chat-container {
+      background-color: white;
+      width: 90%;
+      max-width: 600px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 80%;
+    }
+
+    .chat-header {
+      background-color: #3aa7a3;
+      color: white;
+      text-align: center;
+      padding: 15px;
+      font-size: 18px;
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      background-color: #f5f5f5;
+    }
+
+    .chat-messages .message {
+      margin-bottom: 15px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-messages .message.user {
+      align-items: flex-end;
+    }
+
+    .chat-messages .message.bot {
+      align-items: flex-start;
+    }
+
+    .message .bubble {
+      max-width: 75%;
+      padding: 10px 15px;
+      border-radius: 15px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .message.user .bubble {
+      background-color: #3aa7a3;
+      color: white;
+      border-bottom-right-radius: 0;
+    }
+
+    .message.bot .bubble {
+      background-color: #e5e5ea;
+      color: black;
+      border-bottom-left-radius: 0;
+    }
+
+    .message .timestamp {
+      font-size: 12px;
+      color: #888;
+      margin-top: 5px;
+    }
+
+    .chat-input-container {
+      padding: 10px;
+      border-top: 1px solid #ddd;
+      display: flex;
+      align-items: center;
+      background-color: white;
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 10px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 20px;
+      outline: none;
+    }
+
+    .mic-button {
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      margin-left: 10px;
+      transition: transform 0.2s;
+    }
+
+    .mic-button:hover {
+      transform: scale(1.1);
+    }
+
+    .chat-send {
+      background-color: #3aa7a3;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      margin-left: 10px;
+      border-radius: 20px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .chat-send:hover {
+      background-color: #349993;
+    }
+
+    .recording-indicator {
+      display: none;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: red;
+      animation: pulse 1s infinite;
+      margin-left: 10px;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(1.5);
+        opacity: 0.7;
+      }
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    .recording-indicator.active {
+      display: inline-block;
+    }
+  </style>
 </head>
 <body>
-  <h1>MedInquire AI</h1>
-  <textarea id="query" placeholder="Enter your medical query..." rows="4" cols="50"></textarea>
-  <br>
-  <button onclick="submitQuery()">Get Answer</button>
-  <div id="output"></div>
+  <div class="chat-container">
+    <div class="chat-header">
+      MedInquire AI - Your Medical Assistant
+    </div>
+    <div class="chat-messages" id="chat-messages">
+    </div>
+    <div class="chat-input-container">
+      <input
+        type="text"
+        id="chat-input"
+        class="chat-input"
+        placeholder="Type your query or use the microphone..."
+        onkeypress="handleKeyPress(event)"
+      />
+      <img
+        src="microphone.png"
+        alt="Microphone"
+        class="mic-button"
+        onclick="startSpeechRecognition()"
+      />
+      <div class="recording-indicator" id="recording-indicator"></div>
+      <button class="chat-send" onclick="submitQuery()">Send</button>
+    </div>
+  </div>
 
   <script>
+    let recognition;
+
+    if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+      const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SpeechRecognition();
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+      recognition.continuous = false;
+
+      recognition.onstart = function () {
+        console.log("Speech recognition started...");
+        toggleRecordingIndicator(true);
+      };
+
+      recognition.onresult = function (event) {
+        const transcript = event.results[0][0].transcript;
+        document.getElementById("chat-input").value = transcript;
+        console.log("Recognized speech: ", transcript);
+      };
+
+      recognition.onerror = function (event) {
+        console.error("Speech recognition error:", event.error);
+        alert("Speech recognition error: " + event.error);
+        toggleRecordingIndicator(false);
+      };
+
+      recognition.onend = function () {
+        console.log("Speech recognition ended.");
+        toggleRecordingIndicator(false);
+      };
+    } else {
+      alert("Speech recognition is not supported in this browser.");
+    }
+
+    function startSpeechRecognition() {
+      if (recognition) {
+        recognition.start();
+      } else {
+        alert("Speech recognition is not supported in this browser.");
+      }
+    }
+
+    function toggleRecordingIndicator(isRecording) {
+      const indicator = document.getElementById("recording-indicator");
+      if (isRecording) {
+        indicator.classList.add("active");
+      } else {
+        indicator.classList.remove("active");
+      }
+    }
+
     async function submitQuery() {
-      const query = document.getElementById("query").value;
-      const output = document.getElementById("output");
-      output.innerHTML = "Processing...";
+      const inputElement = document.getElementById("chat-input");
+      const messagesContainer = document.getElementById("chat-messages");
+      const query = inputElement.value.trim();
+
+      if (!query) return;
+
+      addMessageToChat("user", query);
+      inputElement.value = "";
+
+      const typingMessageId = addMessageToChat("bot", "Processing...");
+
       try {
         const response = await fetch("http://127.0.0.1:8000/get-answer", {
           method: "POST",
@@ -24,11 +256,69 @@
           body: JSON.stringify({ query, top_k: 3 }),
         });
         const data = await response.json();
-        output.innerHTML = `<h3>Answer:</h3><p>${data.answer}</p><h4>Sources:</h4><ul>${data.sources.map(src => `<li>${src}</li>`).join("")}</ul>`;
+
+        removeMessageById(typingMessageId);
+
+        addMessageToChat("bot", `<strong>Answer:</strong> ${data.answer}`);
+        addMessageToChat(
+          "bot",
+          `<strong>Sources:</strong><br>${data.sources
+            .map((src) => `<em>- ${src}</em>`)
+            .join("<br>")}`
+        );
       } catch (err) {
-        output.innerHTML = `<p style="color: red;">Error: ${err.message}</p>`;
+        removeMessageById(typingMessageId);
+        addMessageToChat(
+          "bot",
+          `<span style="color: red;">Error: ${err.message}</span>`
+        );
       }
     }
+
+    function addMessageToChat(sender, message) {
+      const messagesContainer = document.getElementById("chat-messages");
+
+      const messageElement = document.createElement("div");
+      messageElement.classList.add("message", sender);
+
+      const bubbleElement = document.createElement("div");
+      bubbleElement.classList.add("bubble");
+      bubbleElement.innerHTML = message;
+
+      const timestampElement = document.createElement("div");
+      timestampElement.classList.add("timestamp");
+      const timestamp = new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      timestampElement.textContent = timestamp;
+
+      messageElement.appendChild(bubbleElement);
+      messageElement.appendChild(timestampElement);
+      messagesContainer.appendChild(messageElement);
+
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+      return messageElement;
+    }
+
+    function removeMessageById(messageElement) {
+      if (messageElement && messageElement.parentNode) {
+        messageElement.parentNode.removeChild(messageElement);
+      }
+    }
+
+    function handleKeyPress(event) {
+      if (event.key === "Enter") {
+        submitQuery();
+      }
+    }
+    window.onload = function () {
+      addMessageToChat(
+        "bot",
+        "Hi, I am MedInquire, your personal Medical Question Answering Chatbot. How can I help you today?"
+      );
+    };
   </script>
 </body>
 </html>
