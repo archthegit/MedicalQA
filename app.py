@@ -151,12 +151,15 @@ class DocumentPreparer:
         return self.docs
 
 class MedicalQASystem:
-    def __init__(self, openai_key):
-        self.retriever = SimilarityMatching()
+    def __init__(self, openai_key, vector_store_file="vector_store"):
+        self.retriever = SimilarityMatching(vector_store_file=vector_store_file)
         self.generator = ResponseGeneration(openai_key=openai_key)
 
     def build_index(self, documents):
-        self.retriever.build_index(documents)
+        if not self.retriever.knowledge_vector_database:
+            self.retriever.build_index(documents)
+        else:
+            print("Vector store already exists. Skipping index building.")
 
     def clean_context(self, context: str) -> str:
         paragraphs = list(set(context.split("\n")))
@@ -178,14 +181,30 @@ class MedicalQASystem:
             "sources": retrieved_docs,
         }
 
-document_preparer = DocumentPreparer("medquad_data.csv")
-document_preparer.load_data("medquad_data.csv")
-document_preparer.prepare_docs()
-document_preparer.chunk_documents()
+# document_preparer = DocumentPreparer("medquad_data.csv")
+# document_preparer.load_data("medquad_data.csv")
+# document_preparer.prepare_docs()
+# document_preparer.chunk_documents()
 
-documents = document_preparer.get_docs()
-qa_system = MedicalQASystem(openai_key="api_key_here")
-qa_system.build_index(documents)
+# documents = document_preparer.get_docs()
+# qa_system = MedicalQASystem(openai_key="")
+# qa_system.build_index(documents)
+
+
+
+document_preparer = None
+if not os.path.exists("vector_store"):
+    document_preparer = DocumentPreparer("medquad_data.csv")
+    document_preparer.load_data("medquad_data.csv")
+    document_preparer.prepare_docs()
+    document_preparer.chunk_documents()
+
+
+documents = document_preparer.get_docs() if document_preparer else []
+qa_system = MedicalQASystem(openai_key="API_KEY_HERE", vector_store_file="vector_store")
+
+if documents:
+    qa_system.build_index(documents)
 
 class QueryRequest(BaseModel):
     query: str
