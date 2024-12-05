@@ -1,362 +1,405 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MedInquire AI</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background-color: #e6f7f6;
-    }
-
-    .chat-container {
-      background-color: white;
-      width: 90%;
-      max-width: 600px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      border-radius: 10px;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      height: 80%;
-    }
-
-    .chat-header {
-      background-color: #3aa7a3;
-      color: white;
-      text-align: center;
-      padding: 15px;
-      font-size: 18px;
-    }
-
-    .chat-messages {
-      flex: 1;
-      padding: 20px;
-      overflow-y: auto;
-      background-color: #f5f5f5;
-    }
-
-    .message {
-      display: flex;
-      align-items: flex-start;
-      margin-bottom: 15px;
-    }
-
-    .message.user {
-      align-items: flex-end;
-      flex-direction: row-reverse;
-    }
-
-    .message .icon {
-      width: 30px;
-      height: 30px;
-      margin: 0 10px;
-      border-radius: 50%;
-    }
-
-    .message .bubble {
-      max-width: 75%;
-      padding: 10px 15px;
-      border-radius: 15px;
-      font-size: 14px;
-      line-height: 1.4;
-    }
-
-    .message.user .bubble {
-      background-color: #3aa7a3;
-      color: white;
-      border-bottom-right-radius: 0;
-    }
-
-    .message.bot .bubble {
-      background-color: #e5e5ea;
-      color: black;
-      border-bottom-left-radius: 0;
-    }
-
-    .chat-input-container {
-      padding: 10px;
-      border-top: 1px solid #ddd;
-      display: flex;
-      align-items: center;
-      background-color: white;
-    }
-
-    .chat-input {
-      flex: 1;
-      padding: 10px;
-      font-size: 14px;
-      border: 1px solid #ccc;
-      border-radius: 20px;
-      outline: none;
-    }
-
-    .icon-button {
-      width: 40px;
-      height: 40px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background-color: #3aa7a3;
-      border-radius: 50%;
-      cursor: pointer;
-      margin: 0 5px;
-      transition: transform 0.2s;
-    }
-
-    .icon-button img {
-      width: 20px;
-      height: 20px;
-    }
-
-    .icon-button:hover {
-      transform: scale(1.1);
-    }
-
-    .recording-box {
-      display: none;
-      flex: 1;
-      padding: 10px;
-      font-size: 14px;
-      background-color: #3aa7a3;
-      color: white;
-      border: 1px solid #ccc;
-      border-radius: 20px;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .recording-box .waves {
-      display: flex;
-      align-items: center;
-    }
-
-    .recording-box .wave {
-      width: 5px;
-      height: 10px;
-      background-color: white;
-      margin: 0 2px;
-      animation: wave-animation 1s infinite ease-in-out;
-    }
-
-    .recording-box .wave:nth-child(1) {
-      animation-delay: 0s;
-    }
-
-    .recording-box .wave:nth-child(2) {
-      animation-delay: 0.2s;
-    }
-
-    .recording-box .wave:nth-child(3) {
-      animation-delay: 0.4s;
-    }
-
-    @keyframes wave-animation {
-      0%, 100% {
-        transform: scaleY(1);
-      }
-      50% {
-        transform: scaleY(2);
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="chat-container">
-    <div class="chat-header">
-      MedInquire AI
-    </div>
-    <div class="chat-messages" id="chat-messages">
-    </div>
-    <div class="chat-input-container">
-      <div class="icon-button" onclick="attachFile()">
-        <img src="assets/paperclip.png" alt="Attach File">
-      </div>
-      <input
-        type="text"
-        id="chat-input"
-        class="chat-input"
-        placeholder="Type your query or use the microphone..."
-        onkeypress="handleKeyPress(event)"
-      />
-      <input
-        type="file"
-        id="file-input"
-        style="display: none;"
-        onchange="handleFileUpload(event)"
-      />
-      <div id="recording-box" class="recording-box">
-        Recording...
-        <div class="waves">
-          <div class="wave"></div>
-          <div class="wave"></div>
-          <div class="wave"></div>
-        </div>
-      </div>
-      <div class="icon-button" onclick="startSpeechRecognition()">
-        <img src="assets/microphone.png" alt="Microphone">
-      </div>
-      <div class="icon-button" onclick="submitQuery()">
-        <img src="assets/send.png" alt="Send">
-      </div>
-    </div>
-  </div>
-
-  <script>
-    let recognition;
-
-    if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
-      const SpeechRecognition =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognition = new SpeechRecognition();
-      recognition.lang = "en-US";
-      recognition.interimResults = false;
-      recognition.continuous = false;
-
-      recognition.onstart = function () {
-        console.log("Speech recognition started...");
-        toggleRecording(true);
-      };
-
-      recognition.onresult = function (event) {
-        const transcript = event.results[0][0].transcript;
-        document.getElementById("chat-input").value = transcript;
-        console.log("Recognized speech: ", transcript);
-      };
-
-      recognition.onerror = function (event) {
-        console.error("Speech recognition error:", event.error);
-        alert("Speech recognition error: " + event.error);
-        toggleRecording(false);
-      };
-
-      recognition.onend = function () {
-        console.log("Speech recognition ended.");
-        toggleRecording(false);
-      };
-    } else {
-      alert("Speech recognition is not supported in this browser.");
-    }
-
-    function startSpeechRecognition() {
-      if (recognition) {
-        recognition.start();
-      } else {
-        alert("Speech recognition is not supported in this browser.");
-      }
-    }
-
-    function toggleRecording(isRecording) {
-      const inputBox = document.getElementById("chat-input");
-      const recordingBox = document.getElementById("recording-box");
-      if (isRecording) {
-        inputBox.style.display = "none";
-        recordingBox.style.display = "flex";
-      } else {
-        inputBox.style.display = "block";
-        recordingBox.style.display = "none";
-      }
-    }
-
-    async function submitQuery() {
-      const inputElement = document.getElementById("chat-input");
-      const messagesContainer = document.getElementById("chat-messages");
-      const query = inputElement.value.trim();
-
-      if (!query) return;
-
-      addMessageToChat("user", query);
-      inputElement.value = "";
-
-      const typingMessageId = addMessageToChat("bot", "Processing...");
-
-      try {
-        const response = await fetch("http://127.0.0.1:8000/get-answer", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query, top_k: 3 }),
-        });
-        const data = await response.json();
-
-        removeMessageById(typingMessageId);
-
-        addMessageToChat("bot", `<strong>Answer:</strong> ${data.answer}`);
-        addMessageToChat(
-          "bot",
-          `<strong>Sources:</strong><br>${data.sources
-            .map((src) => `<em>- ${src}</em>`)
-            .join("<br>")}`
-        );
-      } catch (err) {
-        removeMessageById(typingMessageId);
-        addMessageToChat(
-          "bot",
-          `<span style="color: red;">Error: ${err.message}</span>`
-        );
-      }
-    }
-
-    function addMessageToChat(sender, message) {
-      const messagesContainer = document.getElementById("chat-messages");
-
-      const messageElement = document.createElement("div");
-      messageElement.classList.add("message", sender);
-
-      const iconElement = document.createElement("img");
-      iconElement.classList.add("icon");
-      iconElement.src = sender === "user" ? "assets/user.png" : "assets/chatbot.png";
-
-      const bubbleElement = document.createElement("div");
-      bubbleElement.classList.add("bubble");
-      bubbleElement.innerHTML = message;
-
-      
-      messageElement.appendChild(iconElement);
-      messageElement.appendChild(bubbleElement);
-      messagesContainer.appendChild(messageElement);
-
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-      return messageElement;
-    }
-
-    function removeMessageById(messageElement) {
-      if (messageElement && messageElement.parentNode) {
-        messageElement.parentNode.removeChild(messageElement);
-      }
-    }
-
-    function handleKeyPress(event) {
-      if (event.key === "Enter") {
-        submitQuery();
-      }
-    }
-
-    function attachFile() {
-        const fileInput = document.getElementById("file-input");
-        fileInput.click(); // Programmatically click the hidden file input
-    }
-    function handleFileUpload(event) {
-        const file = event.target.files[0]; // Get the selected file
-        if (file) {
-            addMessageToChat("user", `📎 Uploaded: ${file.name}`); // Display the file name in the chat
-            console.log("File uploaded:", file);
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedInquire AI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #e6f7f6;
         }
-    }
 
-    window.onload = function () {
-      addMessageToChat(
-        "bot",
-        "Hi, I am MedInquire, your personal Medical Question Answering Chatbot. How can I help you today?"
-      );
-    };
-  </script>
+        .chat-container {
+            background-color: white;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 80%;
+        }
+
+        .chat-header {
+            background-color: #3aa7a3;
+            color: white;
+            text-align: center;
+            padding: 15px;
+            font-size: 18px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: #f5f5f5;
+        }
+
+        .message {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .message.user {
+            align-items: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message .icon {
+            width: 30px;
+            height: 30px;
+            margin: 0 10px;
+            border-radius: 50%;
+        }
+
+        .message .bubble {
+            max-width: 75%;
+            padding: 10px 15px;
+            border-radius: 15px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .message.user .bubble {
+            background-color: #3aa7a3;
+            color: white;
+            border-bottom-right-radius: 0;
+        }
+
+        .message.bot .bubble {
+            background-color: #e5e5ea;
+            color: black;
+            border-bottom-left-radius: 0;
+        }
+
+        .chat-input-container {
+            padding: 10px;
+            border-top: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            background-color: white;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            outline: none;
+        }
+
+        .icon-button {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #3aa7a3;
+            border-radius: 50%;
+            cursor: pointer;
+            margin: 0 5px;
+            transition: transform 0.2s;
+        }
+
+        .icon-button img {
+            width: 20px;
+            height: 20px;
+        }
+
+        .icon-button:hover {
+            transform: scale(1.1);
+        }
+
+        .recording-box {
+            display: none;
+            flex: 1;
+            padding: 10px;
+            font-size: 14px;
+            background-color: #3aa7a3;
+            color: white;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .recording-box .waves {
+            display: flex;
+            align-items: center;
+        }
+
+        .recording-box .wave {
+            width: 5px;
+            height: 10px;
+            background-color: white;
+            margin: 0 2px;
+            animation: wave-animation 1s infinite ease-in-out;
+        }
+
+        .recording-box .wave:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .recording-box .wave:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .recording-box .wave:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes wave-animation {
+
+            0%,
+            100% {
+                transform: scaleY(1);
+            }
+
+            50% {
+                transform: scaleY(2);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            MedInquire AI
+        </div>
+        <div class="chat-messages" id="chat-messages">
+        </div>
+        <div class="chat-input-container">
+            <div class="icon-button" onclick="attachFile()">
+                <img src="assets/paperclip.png" alt="Attach File">
+            </div>
+            <input type="text" id="chat-input" class="chat-input" placeholder="Type your query or use the microphone..."
+                onkeypress="handleKeyPress(event)" />
+            <input type="file" id="file-input" style="display: none;" accept="*/*" onchange="handleFileUpload(event)" />
+            <div id="recording-box" class="recording-box">
+                Recording...
+                <div class="waves">
+                    <div class="wave"></div>
+                    <div class="wave"></div>
+                    <div class="wave"></div>
+                </div>
+            </div>
+            <div class="icon-button" onclick="startSpeechRecognition()">
+                <img src="assets/microphone.png" alt="Microphone">
+            </div>
+            <div class="icon-button" onclick="submitQuery()">
+                <img src="assets/send.png" alt="Send">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let recognition;
+
+        if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+            const SpeechRecognition =
+                window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.lang = "en-US";
+            recognition.interimResults = false;
+            recognition.continuous = false;
+
+            recognition.onstart = function () {
+                console.log("Speech recognition started...");
+                toggleRecording(true);
+            };
+
+            recognition.onresult = function (event) {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById("chat-input").value = transcript;
+                console.log("Recognized speech: ", transcript);
+            };
+
+            recognition.onerror = function (event) {
+                console.error("Speech recognition error:", event.error);
+                alert("Speech recognition error: " + event.error);
+                toggleRecording(false);
+            };
+
+            recognition.onend = function () {
+                console.log("Speech recognition ended.");
+                toggleRecording(false);
+            };
+        } else {
+            alert("Speech recognition is not supported in this browser.");
+        }
+
+        function startSpeechRecognition() {
+            if (recognition) {
+                recognition.start();
+            } else {
+                alert("Speech recognition is not supported in this browser.");
+            }
+        }
+
+        function toggleRecording(isRecording) {
+            const inputBox = document.getElementById("chat-input");
+            const recordingBox = document.getElementById("recording-box");
+            if (isRecording) {
+                inputBox.style.display = "none";
+                recordingBox.style.display = "flex";
+            } else {
+                inputBox.style.display = "block";
+                recordingBox.style.display = "none";
+            }
+        }
+
+        async function submitQuery() {
+            const inputElement = document.getElementById("chat-input");
+            const messagesContainer = document.getElementById("chat-messages");
+            const query = inputElement.value.trim();
+
+            if (!query) return;
+
+            addMessageToChat("user", query);
+            inputElement.value = "";
+
+            const typingMessageId = addMessageToChat("bot", "Processing...");
+
+            try {
+                const response = await fetch("http://127.0.0.1:8000/get-answer", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ query, top_k: 3 }),
+                });
+                const data = await response.json();
+
+                removeMessageById(typingMessageId);
+
+                addMessageToChat("bot", `<strong>Answer:</strong> ${data.answer}`);
+                addMessageToChat(
+                    "bot",
+                    `<strong>Sources:</strong><br>${data.sources
+                        .map((src) => `<em>- ${src}</em>`)
+                        .join("<br>")}`
+                );
+            } catch (err) {
+                removeMessageById(typingMessageId);
+                addMessageToChat(
+                    "bot",
+                    `<span style="color: red;">Error: ${err.message}</span>`
+                );
+            }
+        }
+
+        function addMessageToChat(sender, message) {
+            const messagesContainer = document.getElementById("chat-messages");
+
+            const messageElement = document.createElement("div");
+            messageElement.classList.add("message", sender);
+
+            const iconElement = document.createElement("img");
+            iconElement.classList.add("icon");
+            iconElement.src = sender === "user" ? "assets/user.png" : "assets/chatbot.png";
+
+            const bubbleElement = document.createElement("div");
+            bubbleElement.classList.add("bubble");
+            bubbleElement.innerHTML = message;
+
+
+            messageElement.appendChild(iconElement);
+            messageElement.appendChild(bubbleElement);
+            messagesContainer.appendChild(messageElement);
+
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            return messageElement;
+        }
+
+        function removeMessageById(messageElement) {
+            if (messageElement && messageElement.parentNode) {
+                messageElement.parentNode.removeChild(messageElement);
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === "Enter") {
+                submitQuery();
+            }
+        }
+
+        function attachFile() {
+            const fileInput = document.getElementById("file-input");
+            fileInput.click();
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                console.log("File uploaded:", file);
+
+                if (file.type.startsWith("image/")) {
+                    displayImagePreview(file);
+                    sendImageToBackend(file);
+                } else {
+                    console.log("Non-image file uploaded");
+                }
+            }
+        }
+        function displayImagePreview(file) {
+            const previewContainer = document.getElementById("chat-messages");
+
+            const imgElement = document.createElement("img");
+            imgElement.src = URL.createObjectURL(file);
+            imgElement.style.maxWidth = "200px";
+            imgElement.style.maxHeight = "200px";
+            imgElement.style.margin = "10px";
+            imgElement.style.borderRadius = "10px";
+            imgElement.onload = function () {
+                URL.revokeObjectURL(imgElement.src);
+            };
+
+            const previewMessage = document.createElement("div");
+            previewMessage.classList.add("message", "user");
+            previewMessage.appendChild(imgElement);
+            previewContainer.appendChild(previewMessage);
+
+            previewContainer.scrollTop = previewContainer.scrollHeight;
+        }
+        async function sendImageToBackend(file) {
+            const formData = new FormData();
+            formData.append("file", file);
+
+            addMessageToChat("user", `📎 Uploaded: ${file.name}`);
+
+            try {
+                const response = await fetch("http://127.0.0.1:8000/upload-image", {
+                    method: "POST",
+                    body: formData,
+                });
+                const data = await response.json();
+
+                addMessageToChat("bot", `<strong>Image Processed:</strong> ${data.message}`);
+            } catch (err) {
+                addMessageToChat(
+                    "bot",
+                    `<span style="color: red;">Error: ${err.message}</span>`
+                );
+            }
+        }
+        window.onload = function () {
+            addMessageToChat(
+                "bot",
+                "Hi, I am MedInquire, your personal Medical Question Answering Chatbot. How can I help you today?"
+            );
+        };
+    </script>
 </body>
+
 </html>

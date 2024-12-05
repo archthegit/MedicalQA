@@ -1,6 +1,6 @@
 import os
 import pickle
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
@@ -13,6 +13,7 @@ from langchain_community.vectorstores.utils import DistanceStrategy
 from langchain_huggingface import HuggingFaceEmbeddings
 import torch
 import openai
+import base64
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -91,7 +92,7 @@ class ResponseGeneration:
             raise ValueError("OpenAI API key is required.")
         openai.api_key = openai_key
 
-    def generate_response(self, prompt: str, model="gpt-3.5-turbo", max_length: int = 256):
+    def generate_response(self, prompt: str, model="gpt-4", max_length: int = 256):
         """
         Generates a response using OpenAI's ChatCompletion API.
         :param prompt: The input prompt for response generation
@@ -157,6 +158,9 @@ class MedicalQASystem:
         self.previous_reconstructed_history = ""
         if "previous_reconstructed_query.txt" in os.listdir():
             self.previous_reconstructed_history = open("previous_reconstructed_query.txt","r").read()
+        self.image_context = ""
+        if "previous_image_history.txt" in os.listdir():
+            self.image_context = open("previous_image_history.txt","r").read()
 
     def build_index(self, documents):
         if not self.retriever.knowledge_vector_database:
@@ -173,7 +177,8 @@ class MedicalQASystem:
         print(self.previous_reconstructed_history)
         if self.previous_reconstructed_history == "":
             prompt = (f"You are a professional query reconstructor. Based on the query provided below, construct a enhanced"
-                      f" query that a large language model would be able to comprehend better."
+                      f" query that a large language model would be able to comprehend better and" 
+                      f" if the query refers to an image, change the query to refer to the image context"
                       f"Query: {query}\nReconstructed Query:\n"
             
             )
@@ -186,7 +191,8 @@ class MedicalQASystem:
         else:
             prompt = (f"You are a professional query reconstructor. Based on the query provided and the"
                       f" previous reconstructed query with context included below, construct a enhanced"
-                      f" query that a large language model would be able to comprehend better."
+                      f" query that a large language model would be able to comprehend better and"
+                      f" if the query refers to an image, change the query to refer to the image context"
                       f"Query: {query}\n previous reconstructed query: {self.previous_reconstructed_history} Reconstructed Query:\n"
             
             )
@@ -204,11 +210,21 @@ class MedicalQASystem:
         print(reconstructed_query)
         retrieved_docs = self.retriever.search(reconstructed_query, top_k)
         context = self.clean_context("\n".join([doc["content"] for doc in retrieved_docs]))
-        prompt = (
+        if self.image_context == "":
+            prompt = (
             f"You are a professional medical assistant. Based on the context below, provide a detailed and "
             f"professional response to the user's question. Avoid repetition. "
             f"If the context is insufficient, inform the user politely.\n\nContext:\n{context}\n\n"
             f"Question: {reconstructed_query}\nAnswer:"
+        )
+        else:
+            prompt = (
+            f"You are a professional medical assistant, it's alright if you can't view images, don't refelct"
+            f" that in your response and instead use the Image Context"
+            f" Based on the context below, provide a detailed and "
+            f"professional response to the user's question. Avoid repetition. "
+            f"If the context is insufficient, inform the user politely.\n\nContext:\n{context}\n\n"
+            f"Question: {reconstructed_query}\n Image Context: {self.image_context} \nAnswer:"
         )
         answer = self.generator.generate_response(prompt)
         return {
@@ -252,6 +268,35 @@ class QueryResponse(BaseModel):
 @app.get("/")
 def root():
     return {"message": "Welcome to the MedInquire API"}
+
+@app.post("/upload-image")
+async def upload_image(file: UploadFile = File(...)):
+    # Process the uploaded file
+    contents = await file.read()
+    base64_str = base64.b64encode(contents).decode("utf-8")
+    img_type = file.filename.split(".")[-1]
+    print("===== IMAGE TYPE =====")
+    print(img_type)
+    image_description = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text":"Describe the below image"},
+                    {
+                        "type":"image_url",
+                        "image_url": {"url":f"data:image/{img_type};base64,{base64_str}"},
+                    },
+                ]
+            }
+        ]
+    ).choices[0].message.content
+    f = open("previous_image_history.txt","w")
+    f.write(image_description)
+    # Perform image processing or file handling here
+    return {"message": f"File {file.filename} received and processed successfully."}
+
 
 @app.post("/get-answer", response_model=QueryResponse)
 def get_answer(request: QueryRequest):
