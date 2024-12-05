@@ -154,6 +154,9 @@ class MedicalQASystem:
     def __init__(self, openai_key, vector_store_file="vector_store"):
         self.retriever = SimilarityMatching(vector_store_file=vector_store_file)
         self.generator = ResponseGeneration(openai_key=openai_key)
+        self.previous_reconstructed_history = ""
+        if "previous_reconstructed_query.txt" in os.listdir():
+            self.previous_reconstructed_history = open("previous_reconstructed_query.txt","r").read()
 
     def build_index(self, documents):
         if not self.retriever.knowledge_vector_database:
@@ -166,14 +169,46 @@ class MedicalQASystem:
         cleaned_context = "\n".join(para.strip() for para in paragraphs if para.strip())
         return " ".join(cleaned_context.split()[:200])
 
+    def query_enhancer(self, query: str):
+        print(self.previous_reconstructed_history)
+        if self.previous_reconstructed_history == "":
+            prompt = (f"You are a professional query reconstructor. Based on the query provided below, construct a enhanced"
+                      f" query that a large language model would be able to comprehend better."
+                      f"Query: {query}\nReconstructed Query:\n"
+            
+            )
+            reconstructed_query = self.generator.generate_response(prompt).strip("")
+            f = open("previous_reconstructed_history.txt","w")
+            f.write(reconstructed_query)
+            f.close()
+            self.previous_reconstructed_history = reconstructed_query
+            return reconstructed_query
+        else:
+            prompt = (f"You are a professional query reconstructor. Based on the query provided and the"
+                      f" previous reconstructed query with context included below, construct a enhanced"
+                      f" query that a large language model would be able to comprehend better."
+                      f"Query: {query}\n previous reconstructed query: {self.previous_reconstructed_history} Reconstructed Query:\n"
+            
+            )
+            reconstructed_query = self.generator.generate_response(prompt).strip("")
+            print("Writing to file")
+            f = open("previous_reconstructed_history.txt","w")
+            f.write(reconstructed_query)
+            f.close()
+            self.previous_reconstructed_history = reconstructed_query
+            return reconstructed_query
+
+
     def get_answer(self, query: str, top_k: int = 3):
-        retrieved_docs = self.retriever.search(query, top_k)
+        reconstructed_query = self.query_enhancer(query)
+        print(reconstructed_query)
+        retrieved_docs = self.retriever.search(reconstructed_query, top_k)
         context = self.clean_context("\n".join([doc["content"] for doc in retrieved_docs]))
         prompt = (
             f"You are a professional medical assistant. Based on the context below, provide a detailed and "
             f"professional response to the user's question. Avoid repetition. "
             f"If the context is insufficient, inform the user politely.\n\nContext:\n{context}\n\n"
-            f"Question: {query}\nAnswer:"
+            f"Question: {reconstructed_query}\nAnswer:"
         )
         answer = self.generator.generate_response(prompt)
         return {
@@ -201,7 +236,7 @@ if not os.path.exists("vector_store"):
 
 
 documents = document_preparer.get_docs() if document_preparer else []
-qa_system = MedicalQASystem(openai_key="API_KEY_HERE", vector_store_file="vector_store")
+qa_system = MedicalQASystem(openai_key="api_key_here", vector_store_file="vector_store")
 
 if documents:
     qa_system.build_index(documents)
