@@ -186,6 +186,12 @@
         placeholder="Type your query or use the microphone..."
         onkeypress="handleKeyPress(event)"
       />
+      <input
+        type="file"
+        id="file-input"
+        style="display: none;"
+        onchange="handleFileUpload(event)"
+      />
       <div id="recording-box" class="recording-box">
         Recording...
         <div class="waves">
@@ -311,6 +317,7 @@
       bubbleElement.classList.add("bubble");
       bubbleElement.innerHTML = message;
 
+      
       messageElement.appendChild(iconElement);
       messageElement.appendChild(bubbleElement);
       messagesContainer.appendChild(messageElement);
@@ -333,7 +340,15 @@
     }
 
     function attachFile() {
-      alert("Attachment functionality coming soon!");
+        const fileInput = document.getElementById("file-input");
+        fileInput.click(); // Programmatically click the hidden file input
+    }
+    function handleFileUpload(event) {
+        const file = event.target.files[0]; // Get the selected file
+        if (file) {
+            addMessageToChat("user", `📎 Uploaded: ${file.name}`); // Display the file name in the chat
+            console.log("File uploaded:", file);
+        }
     }
 
     window.onload = function () {
